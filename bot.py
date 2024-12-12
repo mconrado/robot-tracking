@@ -20,21 +20,22 @@ USER_PF = config("USER_PATHFINDER")
 PASS_PF = config("PASSWORD_PATHFINDER")
 USER_SALES = config("USER_SALES")
 PASS_SALES = config("PASSWORD_SALES")
+URL_LOGIN = (
+    "https://pathfinder.automationanywhere.com/challenges/salesorder-applogin.html#"
+)
+URL_SALES = (
+    "https://pathfinder.automationanywhere.com/challenges/salesorder-applist.html"
+)
 
 
 class RoboTrack:
     def __init__(self):
         self.webdriver = webdriver.Chrome(service=service, options=options)
 
-    def open_main_page(self):
-        url = "https://pathfinder.automationanywhere.com/challenges/salesorder-applogin.html#"
+    def open_url(self, url):
         self.webdriver.get(url)
 
-    def open_sales_order(self):
-        url = "https://pathfinder.automationanywhere.com/challenges/salesorder-applist.html"
-        self.webdriver.get(url)
-
-    def login_autoany(self):
+    def login_pf(self):
         # clica no botao de aceitar cookies
         accept_button = self.webdriver.find_element(
             By.ID, "onetrust-accept-btn-handler"
@@ -75,7 +76,7 @@ class RoboTrack:
         )
         send_login_button.click()
 
-    def login_challenge(self):
+    def login_sales(self):
         # digitando email
         email_input = WebDriverWait(self.webdriver, 10).until(
             EC.presence_of_element_located((By.ID, "salesOrderInputEmail"))
@@ -126,6 +127,10 @@ class RoboTrack:
                 # resgata os tracking numbers
                 tracking_numbers = self.get_tracking_numbers(html)
 
+                status_delivery = self.check_delivery(tracking_numbers)
+
+                print("olha o status deste order %s " % status_delivery)
+
     # resgata os tracking numbers em list
     def get_tracking_numbers(self, html):
 
@@ -146,16 +151,62 @@ class RoboTrack:
 
         return tracking_numbers
 
+    def check_delivery(self, tracking_numbers):
+
+        self.webdriver.execute_script("window.open('');")
+        self.webdriver.switch_to.window(self.webdriver.window_handles[-1])
+
+        delivery_url = "https://pathfinder.automationanywhere.com/challenges/salesorder-tracking.html"
+        self.webdriver.get(delivery_url)
+
+        status = True
+
+        for tracking_number in tracking_numbers:
+            tracking_input = WebDriverWait(self.webdriver, 10).until(
+                EC.presence_of_element_located((By.ID, "inputTrackingNo"))
+            )
+            tracking_input.clear()
+            tracking_input.send_keys(tracking_number)
+
+            track_button = WebDriverWait(self.webdriver, 10).until(
+                EC.element_to_be_clickable((By.ID, "btnCheckStatus"))
+            )
+            track_button.click()
+
+            WebDriverWait(self.webdriver, 10).until(
+                EC.presence_of_element_located(
+                    (By.XPATH, "(//tbody[@id='shipmentStatus']/tr)[last()]")
+                )
+            )
+
+            status_deliver = self.webdriver.find_element(
+                By.XPATH, "(//tbody[@id='shipmentStatus']/tr)[last()]/td[last()]"
+            ).text
+
+            if status_deliver != "Delivered":
+                status = False
+                break
+
+            time.sleep(1.5)
+
+        time.sleep(3)
+
+        self.webdriver.close()
+
+        self.webdriver.switch_to.window(self.webdriver.window_handles[0])
+
+        return status
+
 
 if __name__ == "__main__":
     bot = RoboTrack()
-    bot.open_main_page()
+    bot.open_url(URL_LOGIN)
     time.sleep(3)
-    bot.login_autoany()
+    bot.login_pf()
     time.sleep(5)
-    bot.login_challenge()
+    bot.login_sales()
     time.sleep(3)
-    bot.open_sales_order()
+    bot.open_url(URL_SALES)
     time.sleep(3)
     bot.set_sales_limit_page(50)
     time.sleep(3)
