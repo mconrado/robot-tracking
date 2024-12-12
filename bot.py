@@ -129,7 +129,14 @@ class RoboTrack:
 
                 status_delivery = self.check_delivery(tracking_numbers)
 
-                print("olha o status deste order %s " % status_delivery)
+                if not status_delivery:
+                    botao_close = WebDriverWait(self.webdriver, 10).until(
+                        EC.element_to_be_clickable(
+                            (By.XPATH, "//button[contains(text(), 'Close')]")
+                        )
+                    )
+                    botao_close.click()
+                    time.sleep(1.5)
 
     # resgata os tracking numbers em list
     def get_tracking_numbers(self, html):
@@ -157,11 +164,12 @@ class RoboTrack:
         self.webdriver.switch_to.window(self.webdriver.window_handles[-1])
 
         delivery_url = "https://pathfinder.automationanywhere.com/challenges/salesorder-tracking.html"
-        self.webdriver.get(delivery_url)
+        self.open_url(delivery_url)
 
         status = True
 
         for tracking_number in tracking_numbers:
+            # espera a disponibilidade do input do track e limpa ele
             tracking_input = WebDriverWait(self.webdriver, 10).until(
                 EC.presence_of_element_located((By.ID, "inputTrackingNo"))
             )
@@ -173,23 +181,26 @@ class RoboTrack:
             )
             track_button.click()
 
+            # espera a disponibilidade tabela de detalhes completa e resgata o status
             WebDriverWait(self.webdriver, 10).until(
                 EC.presence_of_element_located(
                     (By.XPATH, "(//tbody[@id='shipmentStatus']/tr)[last()]")
                 )
             )
 
-            status_deliver = self.webdriver.find_element(
+            status_delivery = self.webdriver.find_element(
                 By.XPATH, "(//tbody[@id='shipmentStatus']/tr)[last()]/td[last()]"
             ).text
 
-            if status_deliver != "Delivered":
+            print("Status do Delivery: %s" % status_delivery)
+
+            if status_delivery != "Delivered":
                 status = False
                 break
 
             time.sleep(1.5)
 
-        time.sleep(3)
+        time.sleep(2)
 
         self.webdriver.close()
 
