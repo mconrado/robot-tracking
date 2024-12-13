@@ -36,6 +36,8 @@ class RoboTrack:
         self.webdriver.get(url)
 
     def login_pf(self):
+        print("LOGANDO NO PATHFINDER...")
+
         # clica no botao de aceitar cookies
         accept_button = self.webdriver.find_element(
             By.ID, "onetrust-accept-btn-handler"
@@ -77,6 +79,7 @@ class RoboTrack:
         send_login_button.click()
 
     def login_sales(self):
+        print("LOGANDO NO SISTEMA INTERNO...")
         # digitando email
         email_input = WebDriverWait(self.webdriver, 10).until(
             EC.presence_of_element_located((By.ID, "salesOrderInputEmail"))
@@ -93,6 +96,7 @@ class RoboTrack:
         self.webdriver.execute_script("authLogin();")
 
     def set_sales_limit_page(self, limit):
+        print("SETANDO A PÁGINA PARA %s OCORRÊNCIAS..." % limit)
 
         select_element = WebDriverWait(self.webdriver, 10).until(
             EC.presence_of_element_located((By.NAME, "salesOrderDataTable_length"))
@@ -102,6 +106,8 @@ class RoboTrack:
 
     def handle_sales(self):
 
+        self.webdriver.execute_script("window.scrollBy(0, 250);")
+
         WebDriverWait(self.webdriver, 10).until(
             EC.presence_of_element_located((By.ID, "salesOrderDataTable"))
         )
@@ -110,33 +116,65 @@ class RoboTrack:
             By.CSS_SELECTOR, "#salesOrderDataTable tbody tr"
         )
 
+        processed_rows = set()
+
         # passa por todas os orders
-        for row in rows:
-            # Captura o status da linha
-            status = row.find_elements(By.TAG_NAME, "td")[4].text
+        while len(processed_rows) < len(rows):
+            rows = self.webdriver.find_elements(
+                By.CSS_SELECTOR, "#salesOrderDataTable tbody tr"
+            )
 
-            if status in ["Confirmed", "Delivery Outstanding"]:
-                # abre o detalhe do order
-                control_cell = row.find_element(By.CLASS_NAME, "dt-control")
-                control_cell.click()
+            for i, row in enumerate(rows):
+                # Captura o status da linha
+                status = row.find_elements(By.TAG_NAME, "td")[4].text
 
-                time.sleep(1)
-                new_row = row.find_element(By.XPATH, "following-sibling::tr[1]")
-                html = new_row.get_attribute("innerHTML")
+                if i in processed_rows:
+                    continue
 
-                # resgata os tracking numbers
-                tracking_numbers = self.get_tracking_numbers(html)
+                processed_rows.add(i)
 
-                status_delivery = self.check_delivery(tracking_numbers)
+                print("STATUS: %s LINHA %s" % (status, i))
 
-                if not status_delivery:
+                if status in ["Confirmed", "Delivery Outstanding"]:
+                    # abre o detalhe do order
+                    control_cell = row.find_element(By.CLASS_NAME, "dt-control")
+                    control_cell.click()
+
+                    time.sleep(1)
+                    new_row = row.find_element(By.XPATH, "following-sibling::tr[1]")
+                    html = new_row.get_attribute("innerHTML")
+
+                    # resgata os tracking numbers
+                    tracking_numbers = self.get_tracking_numbers(html)
+
+                    delivered = self.check_delivery(tracking_numbers)
+                    time.sleep(2)
+
+                    self.webdriver.execute_script("window.scrollBy(0, 250);")
+
+                    if delivered:
+                        print("DELIVERED %s INVOICE" % delivered)
+                        generate_invoice_button = WebDriverWait(
+                            self.webdriver, 10
+                        ).until(
+                            EC.element_to_be_clickable(
+                                (By.XPATH, "//button[text()='Generate Invoice']")
+                            )
+                        )
+                        generate_invoice_button.click()
+                        time.sleep(2)
+                        break
+
+                    print("DELIVERED %s CLOSE" % delivered)
                     botao_close = WebDriverWait(self.webdriver, 10).until(
                         EC.element_to_be_clickable(
                             (By.XPATH, "//button[contains(text(), 'Close')]")
                         )
                     )
                     botao_close.click()
-                    time.sleep(1.5)
+                    time.sleep(2)
+
+        self.webdriver.quit()
 
     # resgata os tracking numbers em list
     def get_tracking_numbers(self, html):
@@ -151,8 +189,7 @@ class RoboTrack:
             if len(cells) > 1:
                 tracking_numbers.append(cells[1].text)
 
-        for tracking_number in tracking_numbers:
-            print(tracking_number)
+        print(*tracking_numbers, sep="\n")
 
         print(f"Total de trackings {len(tracking_numbers)}")
 
