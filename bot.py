@@ -5,7 +5,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select
-from bs4 import BeautifulSoup
 from decouple import config
 import time
 
@@ -141,13 +140,11 @@ class RoboTrack:
                     control_cell.click()
 
                     time.sleep(1)
-                    new_row = row.find_element(By.XPATH, "following-sibling::tr[1]")
-                    html = new_row.get_attribute("innerHTML")
 
-                    # resgata os tracking numbers
-                    tracking_numbers = self.get_tracking_numbers(html)
-
+                    # resgata os tracking numbers e depois checa cada um
+                    tracking_numbers = self.get_tracking_numbers()
                     delivered = self.check_delivery(tracking_numbers)
+
                     time.sleep(2)
 
                     self.webdriver.execute_script("window.scrollBy(0, 250);")
@@ -177,24 +174,28 @@ class RoboTrack:
         self.webdriver.quit()
 
     # resgata os tracking numbers em list
-    def get_tracking_numbers(self, html):
-
-        soup = BeautifulSoup(html, "html.parser")
-        table = soup.find("table", class_="sales-order-items")
+    def get_tracking_numbers(self):
+        table = WebDriverWait(self.webdriver, 10).until(
+            EC.presence_of_element_located(
+                (By.XPATH, "//table[contains(@class, 'sales-order-items')]")
+            )
+        )
 
         tracking_numbers = []
 
-        for row in table.find_all("tr")[1:]:
-            cells = row.find_all("td")
+        rows = table.find_elements(By.XPATH, ".//tbody/tr")
+
+        for row in rows:
+            cells = row.find_elements(By.XPATH, ".//td")
             if len(cells) > 1:
                 tracking_numbers.append(cells[1].text)
 
         print(*tracking_numbers, sep="\n")
-
-        print(f"Total de trackings {len(tracking_numbers)}")
+        print(f"Total de trackings: {len(tracking_numbers)}")
 
         return tracking_numbers
 
+    # verifica todos os tracking ID se foram todos entregues
     def check_delivery(self, tracking_numbers):
 
         self.webdriver.execute_script("window.open('');")
